@@ -1,5 +1,6 @@
 import pandas as pd
-from Pipelines.config_pipelines import sex_list, predictors_wave_1, wave_1_gam, wave_1_gbm, wave_1_rf, TRAIN_PATH
+from Pipelines.config_pipelines import sex_list, predictors_wave_1, wave_1_gam, wave_1_gbm, wave_1_rf, TRAIN_PATH, \
+    wave_0_0_gam, wave_0_1_gam, predictors_wave_0_0, predictors_wave_0_1
 import h2o
 from h2o.estimators import H2OGradientBoostingEstimator
 from h2o.estimators.random_forest import H2ORandomForestEstimator
@@ -38,7 +39,8 @@ def take_population_rates(df: pd.DataFrame):
     return df
 
 
-def loose_correlated_vars(df_: pd.DataFrame, threshold=0.75):
+def loose_correlated_vars(df_: pd.DataFrame, threshold=0.75, manual=['Education Index', 'Intergalactic Development Index (IDI)']):
+
     df = process_raw(TRAIN_PATH).pipe(take_difference).pipe(take_population_rates)
     corr = df.loc[:, (df.columns != 'galactic year') & (df.columns != 'galaxy') & (df.columns != 'y')].corr()
     clean = corr.columns[[sum(df[col].isna())/len(df) < 0.15 for col in corr.columns]]
@@ -46,29 +48,35 @@ def loose_correlated_vars(df_: pd.DataFrame, threshold=0.75):
     to_remove = abs(corr.loc[:, clean]) > threshold
     to_remove = to_remove.loc[unclean]
     to_remove['to keep'] = [sum(to_remove.iloc[i]) < 2 for i in range(len(to_remove))]
+
     df_ = df_.drop(columns=to_remove[~to_remove['to keep']].index)
+    df_ = df_.drop(columns = manual)
     return df_
 
 
-def h2o_gbm(df: pd.DataFrame, targets: list, predictors: list):
+def h2o_gbm(df: pd.DataFrame, targets: list, predictors: list, df_train: pd.DataFrame):
 
-    df_predicted = process_raw(TRAIN_PATH).pipe(take_difference).pipe(take_population_rates).pipe(loose_correlated_vars)
+    df_train_return = df_train.copy()
 
-    df_predictors1 = df.dropna(subset=predictors)
+    tmp_df_to_predict = df.dropna(subset=predictors)
+    tmp_df_to_change_train = df_train_return(subset=predictors)
 
     for TARGET in targets:
 
-        df_predictors = df_predicted.loc[:, predictors + [TARGET]]
+        tmp_df_to_train_on = df_train.loc[:, predictors + [TARGET]]
 
-        index_to_predict = np.array(df_predictors1[TARGET].isna())
+        index_to_predict_test = np.array(tmp_df_to_predict[TARGET].isna())
+        index_to_predict_train = np.array(tmp_df_to_change_train[TARGET].isna())
 
-        test_df = df_predictors1.loc[index_to_predict, predictors]
+        test_df = tmp_df_to_predict.loc[index_to_predict_test, predictors]
+        change_train_df = tmp_df_to_change_train.loc[index_to_predict_train, predictors]
 
-        df_predictors = df_predictors.dropna()
+        tmp_df_to_train_on = tmp_df_to_train_on.dropna()
 
-        train = h2o.H2OFrame(df_predictors)
+        train = h2o.H2OFrame(tmp_df_to_train_on)
 
         test = h2o.H2OFrame(test_df)
+        change_train = h2o.H2OFrame(change_train_df)
 
         response = TARGET
 
@@ -84,7 +92,7 @@ def h2o_gbm(df: pd.DataFrame, targets: list, predictors: list):
                              'histogram_type': ["UniformAdaptive", "QuantilesGlobal", "RoundRobin"]}
 
         search_criteria_tune = {'strategy': "RandomDiscrete",
-                                'max_runtime_secs': 5,  ## limit the runtime to 60 minutes
+                                'max_runtime_secs': 3600,  ## limit the runtime to 60 minutes
                                 'max_models': 100,  ## build no more than 100 models
                                 'seed': 1234,
                                 'stopping_rounds': 5,
@@ -114,36 +122,44 @@ def h2o_gbm(df: pd.DataFrame, targets: list, predictors: list):
         bestgbm = gbm_gridperf1.models[0]
 
         pred = h2o.as_list(bestgbm.predict(test.drop(len(predictors))), use_pandas=True)
+        train_imput = h2o.as_list(bestgbm.predict(change_train.drop(len(predictors))), use_pandas=True)
 
-        df_predictors1.loc[index_to_predict, TARGET] = pred.values
+        tmp_df_to_predict.loc[index_to_predict_test, TARGET] = pred.values
+        tmp_df_to_change_train.loc[index_to_predict_test, TARGET] = train_imput.values
 
         df = df.set_index(['galaxy', 'galactic year']).fillna(
-                df_predictors1.set_index(['galaxy', 'galactic year'])).reset_index()
+                tmp_df_to_predict.set_index(['galaxy', 'galactic year'])).reset_index()
+
+        df_train_return = df_train_return.set_index(['galaxy', 'galactic year']).fillna(
+            tmp_df_to_change_train.set_index(['galaxy', 'galactic year'])).reset_index()
 
         h2o.remove_all()
 
-    return df
+    return df, df_train_return
 
 
-def h2o_drf(df: pd.DataFrame, targets: list, predictors: list):
+def h2o_drf(df: pd.DataFrame, targets: list, predictors: list, df_train: pd.DataFrame):
 
-    df_predicted = process_raw(TRAIN_PATH).pipe(take_difference).pipe(take_population_rates).pipe(loose_correlated_vars)
+    df_train_return = df_train.copy()
 
-    df_predictors1 = df.dropna(subset=predictors)
+    tmp_df_to_predict = df.dropna(subset=predictors)
+    tmp_df_to_change_train = df_train_return(subset=predictors)
 
     for TARGET in targets:
-        df_predictors = df_predicted.loc[:, predictors + [TARGET]]
+        tmp_df_to_train_on = df_train.loc[:, predictors + [TARGET]]
 
+        index_to_predict_test = np.array(tmp_df_to_predict[TARGET].isna())
+        index_to_predict_train = np.array(tmp_df_to_change_train[TARGET].isna())
 
-        index_to_predict = np.array(df_predictors1[TARGET].isna())
+        test_df = tmp_df_to_predict.loc[index_to_predict_test, predictors]
+        change_train_df = tmp_df_to_change_train.loc[index_to_predict_train, predictors]
 
-        test_df = df_predictors1.loc[index_to_predict, predictors]
+        tmp_df_to_train_on = tmp_df_to_train_on.dropna()
 
-        df_predictors = df_predictors.dropna()
-
-        train = h2o.H2OFrame(df_predictors)
+        train = h2o.H2OFrame(tmp_df_to_train_on)
 
         test = h2o.H2OFrame(test_df)
+        change_train = h2o.H2OFrame(change_train_df)
 
         response = TARGET
 
@@ -155,7 +171,7 @@ def h2o_drf(df: pd.DataFrame, targets: list, predictors: list):
             'histogram_type': ["UniformAdaptive", "QuantilesGlobal", "RoundRobin"]}
 
         search_criteria_tune = {'strategy': "RandomDiscrete",
-                                'max_runtime_secs': 5,  ## limit the runtime to 60 minutes
+                                'max_runtime_secs': 3600,  ## limit the runtime to 60 minutes
                                 'max_models': 100,  ## build no more than 100 models
                                 'seed': 1234,
                                 'stopping_rounds': 5,
@@ -175,57 +191,150 @@ def h2o_drf(df: pd.DataFrame, targets: list, predictors: list):
         bestrf = rf_gridperf1.models[0]
 
         pred = h2o.as_list(bestrf.predict(test.drop(len(predictors))), use_pandas=True)
+        train_imput = h2o.as_list(bestrf.predict(change_train.drop(len(predictors))), use_pandas=True)
 
-        df_predictors1.loc[index_to_predict, TARGET] = pred.values
+        tmp_df_to_predict.loc[index_to_predict_test, TARGET] = pred.values
+        tmp_df_to_change_train.loc[index_to_predict_test, TARGET] = train_imput.values
 
         df = df.set_index(['galaxy', 'galactic year']).fillna(
-                df_predictors1.set_index(['galaxy', 'galactic year'])).reset_index()
+                tmp_df_to_predict.set_index(['galaxy', 'galactic year'])).reset_index()
+
+        df_train_return = df_train_return.set_index(['galaxy', 'galactic year']).fillna(
+            tmp_df_to_change_train.set_index(['galaxy', 'galactic year'])).reset_index()
 
         h2o.remove_all()
 
-    return df
+    return df, df_train_return
 
 
-def gam_wave_1(df):
+def gam_wave_0(df):
 
-    df_predicted = process_raw(TRAIN_PATH).pipe(take_difference).pipe(take_population_rates).pipe(loose_correlated_vars)
-    galaxy_to_int = dict((i, g) for g, i in enumerate(df_predicted.galaxy.unique()))
+    df_train = process_raw(TRAIN_PATH).pipe(take_difference).pipe(take_population_rates).pipe(loose_correlated_vars)
+
+    galaxy_to_int = dict((i, g) for g, i in enumerate(df_train.galaxy.unique()))
     int_to_galaxy = {v: k for k, v in galaxy_to_int.items()}
+    df_train.loc[:, ['galaxy']] = [galaxy_to_int[i] for i in df_train.galaxy]
 
-    df_predicted.loc[:, ['galaxy']] = [galaxy_to_int[i] for i in df_predicted.galaxy]
+    tmp_df_to_predict = df.loc[:, predictors_wave_0_0]
+    tmp_df_to_predict = tmp_df_to_predict.dropna()
 
-    df_predictors1 = df.loc[:, predictors_wave_1]
-    df_predictors1 = df_predictors1.dropna()
+    for TARGET in wave_0_0_gam:
+        tmp_df_to_train_on = df_train.loc[:, predictors_wave_0_0 + [TARGET]]
 
-    for TARGET in wave_1_gam:
-        df_predictors = df_predicted.loc[:, predictors_wave_1 + [TARGET]]
+        tmp_df_to_train_on = tmp_df_to_train_on.dropna()
 
-        df_predictors = df_predictors.dropna()
+        X = tmp_df_to_train_on.loc[:, tmp_df_to_train_on.columns != TARGET]
+        y = tmp_df_to_train_on.loc[:, TARGET]
 
-        X = df_predictors.loc[:, df_predictors.columns != TARGET]
-        y = df_predictors.loc[:, TARGET]
+        lams = np.exp(np.random.random(size=(300, 6)) * 6 - 3)
 
-        lams = np.exp(np.random.random(size=(50, 8)) * 6 - 3)
-
-        gam = LinearGAM(s(0, dtype='categorical', by=1) + f(0) + s(1) + s(2) + s(3) + s(4) + s(5) + s(6)).gridsearch(
+        gam = LinearGAM(s(0, dtype='categorical', by=1) + f(0) + s(1) + s(2) + s(3) + s(4)).gridsearch(
             np.array(X), np.array(y), lam=lams)
 
-        df_predictors1.loc[:, ['galaxy']] = [galaxy_to_int[i] for i in df_predictors1.galaxy]
+        tmp_df_to_predict.loc[:, ['galaxy']] = [galaxy_to_int[i] for i in tmp_df_to_predict.galaxy]
 
-        df_predictors1[TARGET] = gam.predict(df_predictors1)
+        tmp_df_to_predict[TARGET] = gam.predict(tmp_df_to_predict)
 
-        df_predictors1.loc[:, ['galaxy']] = [int_to_galaxy[i] for i in df_predictors1.galaxy]
+        tmp_df_to_predict.loc[:, ['galaxy']] = [int_to_galaxy[i] for i in tmp_df_to_predict.galaxy]
 
         df = df.set_index(['galaxy', 'galactic year']).fillna(
-                df_predictors1.set_index(['galaxy', 'galactic year'])).reset_index()
+                tmp_df_to_predict.set_index(['galaxy', 'galactic year'])).reset_index()
+
+        tmp_df_to_predict = tmp_df_to_predict.drop(columns = [TARGET], axis =1)
+
+    tmp_df_to_predict = df.loc[:, predictors_wave_0_1]
+    tmp_df_to_predict = tmp_df_to_predict.dropna()
+
+    for TARGET in wave_0_1_gam:
+        tmp_df_to_train_on = df_train.loc[:, predictors_wave_0_1 + [TARGET]]
+
+        tmp_df_to_train_on = tmp_df_to_train_on.dropna()
+
+        X = tmp_df_to_train_on.loc[:, tmp_df_to_train_on.columns != TARGET]
+        y = tmp_df_to_train_on.loc[:, TARGET]
+
+        lams = np.exp(np.random.random(size=(300, 7)) * 6 - 3)
+
+        gam = LinearGAM(s(0, dtype='categorical', by=1) + f(0) + s(1) + s(2) + s(3) + s(4) + s(5)).gridsearch(
+            np.array(X), np.array(y), lam=lams)
+
+        tmp_df_to_predict.loc[:, ['galaxy']] = [galaxy_to_int[i] for i in tmp_df_to_predict.galaxy]
+
+        tmp_df_to_predict[TARGET] = gam.predict(tmp_df_to_predict)
+
+        tmp_df_to_predict.loc[:, ['galaxy']] = [int_to_galaxy[i] for i in tmp_df_to_predict.galaxy]
+
+        df = df.set_index(['galaxy', 'galactic year']).fillna(
+                tmp_df_to_predict.set_index(['galaxy', 'galactic year'])).reset_index()
+
+        tmp_df_to_predict = tmp_df_to_predict.drop(columns=[TARGET], axis=1)
 
     return df
+
+
+def gam_wave_1(df, df_train: pd.DataFrame):
+
+    galaxy_to_int = dict((i, g) for g, i in enumerate(df_train.galaxy.unique()))
+    int_to_galaxy = {v: k for k, v in galaxy_to_int.items()}
+
+    tmp_df_to_predict = df.loc[:, predictors_wave_1].dropna()
+
+    tmp_df_to_change_train = df_train.loc[:, predictors_wave_1].dropna()
+
+    df_train_return = df_train.copy()
+
+    df_train.loc[:, ['galaxy']] = [galaxy_to_int[i] for i in df_train.galaxy]
+
+    for TARGET in wave_1_gam:
+        tmp_df_to_train_on = df_train.loc[:, predictors_wave_1 + [TARGET]]
+
+        tmp_df_to_train_on = tmp_df_to_train_on.dropna()
+
+        X = tmp_df_to_train_on.loc[:, tmp_df_to_train_on.columns != TARGET]
+        y = tmp_df_to_train_on.loc[:, TARGET]
+
+        lams = np.exp(np.random.random(size=(300, 9)) * 6 - 3)
+
+        gam = LinearGAM(s(0, dtype='categorical', by=1) + f(0) + s(1) + s(2) + s(3) + s(4) + s(5) + s(6) + s(7)).gridsearch(
+            np.array(X), np.array(y), lam=lams)
+
+        tmp_df_to_predict.loc[:, ['galaxy']] = [galaxy_to_int[i] for i in tmp_df_to_predict.galaxy]
+        tmp_df_to_change_train.loc[:,['galaxy']] = [galaxy_to_int[i] for i in tmp_df_to_change_train.galaxy]
+
+        tmp_df_to_predict[TARGET] = gam.predict(tmp_df_to_predict)
+        tmp_df_to_change_train[TARGET] = gam.predict(tmp_df_to_change_train)
+
+        tmp_df_to_predict.loc[:, ['galaxy']] = [int_to_galaxy[i] for i in tmp_df_to_predict.galaxy]
+        tmp_df_to_change_train.loc[:, ['galaxy']] = [int_to_galaxy[i] for i in tmp_df_to_change_train.galaxy]
+
+        df = df.set_index(['galaxy', 'galactic year']).fillna(
+                tmp_df_to_predict.set_index(['galaxy', 'galactic year'])).reset_index()
+
+        df_train_return = df_train_return.set_index(['galaxy', 'galactic year']).fillna(
+                tmp_df_to_change_train.set_index(['galaxy', 'galactic year'])).reset_index()
+
+        tmp_df_to_predict = tmp_df_to_predict.drop(columns=[TARGET], axis=1)
+        tmp_df_to_change_train = tmp_df_to_change_train.drop(columns=[TARGET], axis=1)
+
+    return df, df_train_return
+
+
+def random_forest(df, df_train):
+    return df, df_train
 
 
 def imputation_wave_1(df: pd.DataFrame):
 
-        h2o.init(nthreads=-1, min_mem_size='100G', max_mem_size='200G')
-        df = df.pipe(h2o_gbm,  wave_1_gbm, predictors_wave_1).pipe(h2o_drf,  wave_1_rf, predictors_wave_1).pipe(gam_wave_1)
-        h2o.shutdown()
+    df_train_1 = process_raw(TRAIN_PATH).pipe(take_difference).pipe(take_population_rates).pipe(loose_correlated_vars)\
+        .pipe(gam_wave_0)
+    h2o.init(nthreads=-1, min_mem_size='100G', max_mem_size='200G')
 
-        return df
+    df = df.pipe(gam_wave_0)
+    df, df_train_2 = h2o_gbm(df, wave_1_gbm, predictors_wave_1, df_train_1)
+    df, df_train_3 = h2o_drf(df, wave_1_rf, predictors_wave_1, df_train_2)
+    df, df_train_4 = gam_wave_1(df, df_train_3)
+
+
+    h2o.shutdown()
+
+    return df
