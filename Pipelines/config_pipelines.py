@@ -49,7 +49,8 @@ predictors_wave_1 = [
                      'Intergalactic Development Index (IDI), Rank'
                       ]
 
-wave_1_gbm = ['Population, urban (%)',
+wave_1_gbm = [
+              'Population, urban (%)',
               'Old age dependency ratio (old age (65 and older) per 100 creatures (ages 15-64))',
               'Adolescent birth rate (births per 1,000 female creatures ages 15-19)',
               'Infants lacking immunization, red hot disease (% of one-galactic year-olds)',
@@ -83,15 +84,86 @@ wave_1_rf = [
              'Outer Galaxies direct investment, net inflows (% of GGP)', 'diff - Mortality rate'
             ]
 
-wave_1_cv_rf = [
-    'Population, total (millions)',
-    # {'max_depth': 5, 'max_features': 'auto', 'n_estimators': 200}
-    'Gross galactic product (GGP), total',
-    # {'max_depth': 5, 'max_features': 'auto', 'n_estimators': 800}
-    'Total unemployment rate (female to male ratio)',
-    # {'max_depth': 40, 'max_features': 'auto', 'n_estimators': 800}
-    'diff - Mean years of education',
-    # {'max_depth': 20, 'max_features': 'sqrt', 'n_estimators': 800}
-    'diff - Estimated gross galactic income per capita'
-    # {'max_depth': 5, 'max_features': 'auto', 'n_estimators': 800}
+wave_1_cv_rf = {
+    'Population, total (millions)': {'max_depth': [3,5,8], 'max_features': ['auto'], 'n_estimators': [100,200,300]},
+    'Gross galactic product (GGP), total': {'max_depth': [3,5,8], 'max_features': ['auto'], 'n_estimators': [700,800,1000]},
+    'Total unemployment rate (female to male ratio)': {'max_depth': [30,40,50], 'max_features': ['auto'], 'n_estimators': [700,800,1000]},
+    'diff - Mean years of education' : {'max_depth': [15,20, 25], 'max_features': ['sqrt'], 'n_estimators': [700,800,1000]},
+    'diff - Estimated gross galactic income per capita': {'max_depth': [3,5,8], 'max_features': ['auto'], 'n_estimators':[700,800,1000]}
+}
+
+predictors_wave_2_population = [
+    'galaxy',
+    'galactic year',
+    'existence expectancy index',
+    'existence expectancy at birth',
+    'Population, urban (%)',
+    'Unemployment, youth (% ages 15–24)',
+    'Unemployment, total (% of labour force)',
+    'Interstellar Data Net users, total (% of population)',]
+
+predictors_wave_2_macroeconomic = [
+   'galaxy',
+   'galactic year',
+   'existence expectancy index',
+   'existence expectancy at birth',
+   'Population, urban (%)',
+   'Unemployment, youth (% ages 15–24)',
+   'Unemployment, total (% of labour force)',
+   'Gross galactic product (GGP) per capita',
+   'Income Index',
+   'Gross income per capita',
+   'Domestic credit provided by financial sector (% of GGP)',
+   'Interstellar Data Net users, total (% of population)',
+   'Adjusted net savings ',
+   'Gross capital formation (% of GGP)',
+   'Intergalactic Development Index (IDI), Rank',
+   'Mean years of education (galactic years)',
+   'Expected years of education (galactic years)',
+   'Gender Development Index (GDI)',
+   'Renewable energy consumption (% of total final energy consumption)',
+   'Natural resource depletion'
     ]
+
+predictors_wave_2_health = [
+    'galaxy',
+    'galactic year',
+    'existence expectancy index',
+    'existence expectancy at birth',
+    'Population, urban (%)',
+    'Adolescent birth rate (births per 1,000 female creatures ages 15-19)',
+    'Old age dependency ratio (old age (65 and older) per 100 creatures (ages 15-64))',
+    'Infants lacking immunization, Combination Vaccine (% of one-galactic year-olds)',
+    'Infants lacking immunization, red hot disease (% of one-galactic year-olds)',
+    'Respiratory disease incidence (per 100,000 people)',
+    ]
+
+
+wave_2_gbm_population = [
+    'Population, under age 5 (rate)',
+    'Population, ages 65 and older (rate)'
+]
+
+wave_2_gbm_macroeconmic = [
+    'diff - Labour force participation rate (% ages 15 and older)',
+    'Labour force participation rate (% ages 15 and older)',
+    'Employment to population ratio (% ages 15 and older)',
+    'Share of employment in nonagriculture, female (% of total employment in nonagriculture)',
+    'Interstellar phone subscriptions (per 100 people)',
+    'Private galaxy capital flows (% of GGP)',
+]
+
+wave_2_drf_macroeconomic = [
+    'Gross fixed capital formation (% of GGP)'
+]
+
+wave_2_gbm_health = [
+    'Current health expenditure (% of GGP)'
+]
+
+wave_2_cvrf_macroeconomic = {
+    'Remittances, inflows (% of GGP)':
+        {'max_depth': [25,30,35], 'max_features': ['sqrt'], 'n_estimators': [800,1000]},
+    'Youth unemployment rate (female to male ratio)':
+        {'max_depth': [40,50], 'max_features': ['sqrt'], 'n_estimators': [150,200,250]}
+}
