@@ -408,7 +408,7 @@ def random_forest(df, targets_to_grids, predictors, df_train):
 def last_imputation(df):
     for galaxy in df.galaxy.unique():
         data = df.loc[df.galaxy == galaxy, df.columns != 'galaxy']
-        if data.isnull().values.any()
+        if data.isnull().values.any():
             imp = SimpleImputer(missing_values=np.nan, strategy='mean').fit(data)
             df.loc[df.galaxy == galaxy, df.columns != 'galaxy'] = imp.transform(data)
     return df
