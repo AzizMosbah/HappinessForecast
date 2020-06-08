@@ -1,5 +1,5 @@
-TRAIN_PATH = "../train.csv"
-TEST_PATH = "../../test.csv"
+TRAIN_PATH = "Data/train.csv"
+TEST_PATH = "Data/test.csv"
 
 sex_list = [
 
