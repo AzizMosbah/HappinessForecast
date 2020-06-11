@@ -1,0 +1,15 @@
+[W 16:32:01.242 NotebookApp] WARNING: The notebook server is listening on all IP addresses and not using encryption. This is not recommended.
+[I 16:32:01.245 NotebookApp] Serving notebooks from local directory: /home/datageek/McHack
+[I 16:32:01.245 NotebookApp] The Jupyter Notebook is running at:
+[I 16:32:01.245 NotebookApp] http://data36-learn-datascience:8889/?token=b50138e15e78dfe52cda613129c056f0ae7586211f377556
+[I 16:32:01.245 NotebookApp]  or http://127.0.0.1:8889/?token=b50138e15e78dfe52cda613129c056f0ae7586211f377556
+[I 16:32:01.245 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 16:32:01.248 NotebookApp] 
+    
+    To access the notebook, open this file in a browser:
+        file:///home/datageek/.local/share/jupyter/runtime/nbserver-4749-open.html
+    Or copy and paste one of these URLs:
+        http://data36-learn-datascience:8889/?token=b50138e15e78dfe52cda613129c056f0ae7586211f377556
+     or http://127.0.0.1:8889/?token=b50138e15e78dfe52cda613129c056f0ae7586211f377556
+[I 16:33:53.652 NotebookApp] Interrupted...
+[I 16:33:53.674 NotebookApp] Shutting down 0 kernels
