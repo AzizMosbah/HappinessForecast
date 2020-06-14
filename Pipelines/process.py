@@ -239,7 +239,7 @@ def gam_wave_0(df, df_train):
         X = tmp_df_to_train_on.loc[:, tmp_df_to_train_on.columns != TARGET]
         y = tmp_df_to_train_on.loc[:, TARGET]
 
-        lams = np.exp(np.random.random(size=(300, 6)) * 6 - 3)
+        lams = np.exp(np.random.random(size=(500, 6)) * 6 - 3)
 
         gam = LinearGAM(s(0, dtype='categorical', by=1) + f(0) + s(1) + s(2) + s(3) + s(4)).gridsearch(
             np.array(X), np.array(y), lam=lams)
@@ -271,7 +271,7 @@ def gam_wave_0(df, df_train):
         X = tmp_df_to_train_on.loc[:, tmp_df_to_train_on.columns != TARGET]
         y = tmp_df_to_train_on.loc[:, TARGET]
 
-        lams = np.exp(np.random.random(size=(300, 7)) * 6 - 3)
+        lams = np.exp(np.random.random(size=(500, 7)) * 6 - 3)
 
         gam = LinearGAM(s(0, dtype='categorical', by=1) + f(0) + s(1) + s(2) + s(3) + s(4) + s(5)).gridsearch(
             np.array(X), np.array(y), lam=lams)
@@ -317,7 +317,7 @@ def gam_wave_1(df, df_train: pd.DataFrame):
         X = tmp_df_to_train_on.loc[:, tmp_df_to_train_on.columns != TARGET]
         y = tmp_df_to_train_on.loc[:, TARGET]
 
-        lams = np.exp(np.random.random(size=(300, 9)) * 6 - 3)
+        lams = np.exp(np.random.random(size=(500, 9)) * 6 - 3)
 
         gam = LinearGAM(s(0, dtype='categorical', by=1) + f(0) + s(1) + s(2) + s(3) + s(4) + s(5) + s(6) + s(7)).gridsearch(
             np.array(X), np.array(y), lam=lams)
@@ -411,15 +411,17 @@ def last_imputation(df, df_train):
         index_train = df_train.galaxy == galaxy
         index_test = df.galaxy == galaxy
         for column in df_train.columns:
-            if (column != 'galaxy'):
+            if (column != 'galaxy') & (column != 'y'):
                 df.loc[index_test, column] = df.loc[index_test, column].fillna(df_train.loc[index_train,column].mean())
-               
-    imp = SimpleImputer(missing_values=np.nan, strategy='mean').fit(df_train.loc[:, df_train.columns != 'galaxy'])
-    tmp = pd.DataFrame(imp.transform(df.loc[:, df.columns != 'galaxy']))
-    tmp.columns = df.loc[:, df.columns != 'galaxy'].columns
-    tmp.index = df.loc[:, df.columns != 'galaxy'].index
-    df.loc[:, df.columns != 'galaxy'] = tmp
-
+                
+                
+    imp = SimpleImputer(missing_values=np.nan, strategy='mean').fit(df_train.loc[:, (df_train.columns != 'galaxy') & (df_train.columns != 'y')])
+    
+    tmp = pd.DataFrame(imp.transform(df.loc[:, (df.columns != 'galaxy') & (df.columns != 'y')]))
+    tmp.columns = df.loc[:, (df.columns != 'galaxy') & (df.columns != 'y')].columns
+    tmp.index = df.loc[:, (df.columns != 'galaxy') & (df.columns != 'y')].index
+    df.loc[:, (df.columns != 'galaxy') & (df.columns != 'y')] = tmp
+    
     return df
 
 def imputation_waves(df: pd.DataFrame):
@@ -440,7 +442,8 @@ def imputation_waves(df: pd.DataFrame):
     df, df_train_10 = h2o_drf(df, wave_2_drf_macroeconomic, predictors_wave_2_macroeconomic, df_train = df_train_9)
     df, df_train_11 = random_forest(df, wave_2_cvrf_macroeconomic, predictors_wave_2_macroeconomic, df_train = df_train_10)
     df = df.pipe(last_imputation, df_train_11)
+    df_train_11 = df_train_11.pipe(last_imputation, df_train_11)
 
     h2o.shutdown()
 
-    return df
+    return df, df_train_11
